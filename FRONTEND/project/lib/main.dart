@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'home_page.dart'; // Import HomePage
 
 void main() {
   runApp(const MyApp());
 }
+
+const String backendUrl = 'http://10.0.2.2:5000/api/auth';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -11,64 +16,18 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Firebase Auth UI',
+      title: 'Auth UI',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: Colors.white,
       ),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Welcome',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black),
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-              ),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AuthScreen(isLogin: false)),
-              ),
-              child: const Text('Create Account', style: TextStyle(fontSize: 18)),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-              ),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AuthScreen(isLogin: true)),
-              ),
-              child: const Text('Log In', style: TextStyle(fontSize: 18)),
-            ),
-          ],
-        ),
-      ),
+      home: const AuthScreen(),
     );
   }
 }
 
 class AuthScreen extends StatefulWidget {
-  final bool isLogin;
-  const AuthScreen({super.key, required this.isLogin});
+  const AuthScreen({super.key});
 
   @override
   _AuthScreenState createState() => _AuthScreenState();
@@ -77,24 +36,78 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  String? _role;
+  bool _isLogin = false;
+  bool _showFields = false;
+
+  Future<void> _authenticate() async {
+    String email = _emailController.text.trim();
+    String password = _passwordController.text.trim();
+    String name = _nameController.text.trim();
+    String phone = _phoneController.text.trim();
+    String endpoint = _isLogin ? 'login' : 'signup';
+
+    final response = await http.post(
+      Uri.parse('$backendUrl/$endpoint'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+        if (!_isLogin) 'name': name,
+        if (!_isLogin) 'phone': phone,
+        if (!_isLogin) 'type': _role,
+      }),
+    );
+
+    final responseData = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      final userData = responseData['user']; // Extract user data
+
+      // Navigate to HomePage with user details
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => HomePage(userData: userData)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(responseData['msg'] ?? 'An error occurred')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.isLogin ? 'Log In' : 'Create Account'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Authentication')),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!_showFields)
+              Column(
+                children: [
+                  ElevatedButton(
+                    onPressed: () => setState(() {
+                      _isLogin = false;
+                      _showFields = true;
+                    }),
+                    child: const Text('Sign Up'),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () => setState(() {
+                      _isLogin = true;
+                      _showFields = true;
+                    }),
+                    child: const Text('Log In'),
+                  ),
+                ],
+              ),
+            if (_showFields) ...[
               TextField(
                 controller: _emailController,
                 decoration: InputDecoration(
@@ -114,24 +127,45 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 obscureText: true,
               ),
+              if (!_isLogin) ...[
+                const SizedBox(height: 15),
+                TextField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    prefixIcon: const Icon(Icons.person),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: _phoneController,
+                  decoration: InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    prefixIcon: const Icon(Icons.phone),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 15),
+                DropdownButtonFormField(
+                  items: const [
+                    DropdownMenuItem(value: 'Supplier', child: Text('Supplier')),
+                    DropdownMenuItem(value: 'Consumer', child: Text('Consumer')),
+                  ],
+                  onChanged: (value) => setState(() => _role = value as String?),
+                  decoration: InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
+                ),
+              ],
               const SizedBox(height: 25),
               Center(
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  ),
-                  onPressed: () {
-                    String email = _emailController.text.trim();
-                    String password = _passwordController.text.trim();
-                    print(widget.isLogin ? 'Logging in $email' : 'Creating account for $email');
-                    // Firebase authentication logic will be added here.
-                  },
-                  child: Text(widget.isLogin ? 'Log In' : 'Sign Up', style: const TextStyle(fontSize: 18)),
+                  onPressed: _authenticate,
+                  child: Text(_isLogin ? 'Log In' : 'Sign Up'),
                 ),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
