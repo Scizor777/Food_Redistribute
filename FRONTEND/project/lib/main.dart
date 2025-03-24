@@ -18,8 +18,20 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Auth UI',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.orange,
         scaffoldBackgroundColor: Colors.white,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.orange.shade50,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Colors.orange),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Colors.deepOrange, width: 2),
+          ),
+        ),
       ),
       home: const AuthScreen(),
     );
@@ -63,9 +75,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     final responseData = jsonDecode(response.body);
     if (response.statusCode == 200) {
-      final userData = responseData['user']; // Extract user data
-
-      // Navigate to HomePage with user details
+      final userData = responseData['user'];
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => HomePage(userData: userData)),
@@ -80,93 +90,89 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Authentication')),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!_showFields)
-              Column(
-                children: [
-                  ElevatedButton(
-                    onPressed: () => setState(() {
-                      _isLogin = false;
-                      _showFields = true;
-                    }),
-                    child: const Text('Sign Up'),
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () => setState(() {
-                      _isLogin = true;
-                      _showFields = true;
-                    }),
-                    child: const Text('Log In'),
+      appBar: AppBar(
+        title: const Text('Authentication'),
+        leading: _showFields
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() => _showFields = false),
+              )
+            : null,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (!_showFields)
+                Column(
+                  children: [
+                    _buildButton('Sign Up', () => setState(() {
+                          _isLogin = false;
+                          _showFields = true;
+                        })),
+                    const SizedBox(height: 10),
+                    _buildButton('Log In', () => setState(() {
+                          _isLogin = true;
+                          _showFields = true;
+                        })),
+                  ],
+                ),
+              if (_showFields) ...[
+                _buildTextField('Email', _emailController, Icons.email, false),
+                const SizedBox(height: 15),
+                _buildTextField('Password', _passwordController, Icons.lock, true),
+                if (!_isLogin) ...[
+                  const SizedBox(height: 15),
+                  _buildTextField('Name', _nameController, Icons.person, false),
+                  const SizedBox(height: 15),
+                  _buildTextField('Phone Number', _phoneController, Icons.phone, false, TextInputType.phone),
+                  const SizedBox(height: 15),
+                  DropdownButtonFormField(
+                    items: const [
+                      DropdownMenuItem(value: 'Supplier', child: Text('Supplier')),
+                      DropdownMenuItem(value: 'Consumer', child: Text('Consumer')),
+                    ],
+                    onChanged: (value) => setState(() => _role = value as String?),
+                    decoration: const InputDecoration(labelText: 'Type'),
                   ),
                 ],
-              ),
-            if (_showFields) ...[
-              TextField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  prefixIcon: const Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  prefixIcon: const Icon(Icons.lock),
-                ),
-                obscureText: true,
-              ),
-              if (!_isLogin) ...[
-                const SizedBox(height: 15),
-                TextField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    prefixIcon: const Icon(Icons.person),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: _phoneController,
-                  decoration: InputDecoration(
-                    labelText: 'Phone Number',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    prefixIcon: const Icon(Icons.phone),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 15),
-                DropdownButtonFormField(
-                  items: const [
-                    DropdownMenuItem(value: 'Supplier', child: Text('Supplier')),
-                    DropdownMenuItem(value: 'Consumer', child: Text('Consumer')),
-                  ],
-                  onChanged: (value) => setState(() => _role = value as String?),
-                  decoration: InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
-                ),
+                const SizedBox(height: 25),
+                _buildButton(_isLogin ? 'Log In' : 'Sign Up', _authenticate),
               ],
-              const SizedBox(height: 25),
-              Center(
-                child: ElevatedButton(
-                  onPressed: _authenticate,
-                  child: Text(_isLogin ? 'Log In' : 'Sign Up'),
-                ),
-              ),
             ],
-          ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller, IconData icon, bool obscure, [TextInputType type = TextInputType.text]) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.orange.shade700),
+      ),
+      obscureText: obscure,
+      keyboardType: type,
+    );
+  }
+
+  Widget _buildButton(String text, VoidCallback onPressed) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.deepOrange,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onPressed: onPressed,
+        child: Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
     );
   }
