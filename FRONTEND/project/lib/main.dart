@@ -50,39 +50,66 @@ class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _companyNameController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _stateController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
+
   String? _role;
   bool _isLogin = false;
   bool _showFields = false;
+  final _formKey = GlobalKey<FormState>();
 
   Future<void> _authenticate() async {
+    if (!_formKey.currentState!.validate()) return;
+
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
     String name = _nameController.text.trim();
     String phone = _phoneController.text.trim();
+    String companyName = _companyNameController.text.trim();
+    String address = _addressController.text.trim();
+    String state = _stateController.text.trim();
+    String city = _cityController.text.trim();
+
     String endpoint = _isLogin ? 'login' : 'signup';
 
-    final response = await http.post(
-      Uri.parse('$backendUrl/$endpoint'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-        if (!_isLogin) 'name': name,
-        if (!_isLogin) 'phone': phone,
-        if (!_isLogin) 'type': _role,
-      }),
-    );
+    Map<String, dynamic> body = {
+      'email': email,
+      'password': password,
+      if (!_isLogin) 'name': name,
+      if (!_isLogin) 'phone': phone,
+      if (!_isLogin) 'type': _role,
+      if (!_isLogin && _role == 'Supplier') ...{
+        'companyName': companyName,
+        'address': address,
+        'state': state,
+        'city': city,
+      }
+    };
 
-    final responseData = jsonDecode(response.body);
-    if (response.statusCode == 200) {
-      final userData = responseData['user'];
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomePage(userData: userData)),
+    try {
+      final response = await http.post(
+        Uri.parse('$backendUrl/$endpoint'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
       );
-    } else {
+
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        final userData = responseData['user'];
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomePage(userData: userData)),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(responseData['msg'] ?? 'An error occurred')),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(responseData['msg'] ?? 'An error occurred')),
+        const SnackBar(content: Text('Failed to connect to server')),
       );
     }
   }
@@ -99,9 +126,10 @@ class _AuthScreenState extends State<AuthScreen> {
               )
             : null,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
+        child: Form(
+          key: _formKey,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -121,26 +149,90 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
                 ),
               if (_showFields) ...[
-                _buildTextField('Email', _emailController, Icons.email, false),
+                _buildTextField('Email', _emailController, Icons.email, false, (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your email';
+                  }
+                  if (!value.contains('@')) {
+                    return 'Please enter a valid email';
+                  }
+                  return null;
+                }),
                 const SizedBox(height: 15),
-                _buildTextField('Password', _passwordController, Icons.lock, true),
+                _buildTextField('Password', _passwordController, Icons.lock, true, (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your password';
+                  }
+                  if (value.length < 4) {
+                    return 'Password must be at least 4 characters';
+                  }
+                  return null;
+                }),
                 if (!_isLogin) ...[
                   const SizedBox(height: 15),
-                  _buildTextField('Name', _nameController, Icons.person, false),
+                  _buildTextField('Name', _nameController, Icons.person, false, (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your name';
+                    }
+                    return null;
+                  }),
                   const SizedBox(height: 15),
-                  _buildTextField('Phone Number', _phoneController, Icons.phone, false, TextInputType.phone),
+                  _buildTextField('Phone Number', _phoneController, Icons.phone, false, (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your phone number';
+                    }
+                    return null;
+                  }, TextInputType.phone),
                   const SizedBox(height: 15),
-                  DropdownButtonFormField(
+                  DropdownButtonFormField<String>(
+                    value: _role,
                     items: const [
                       DropdownMenuItem(value: 'Supplier', child: Text('Supplier')),
                       DropdownMenuItem(value: 'Consumer', child: Text('Consumer')),
                     ],
-                    onChanged: (value) => setState(() => _role = value as String?),
+                    onChanged: (value) => setState(() => _role = value),
                     decoration: const InputDecoration(labelText: 'Type'),
+                    validator: (value) {
+                      if (!_isLogin && (value == null || value.isEmpty)) {
+                        return 'Please select a type';
+                      }
+                      return null;
+                    },
                   ),
+                  if (_role == 'Supplier') ...[
+                    const SizedBox(height: 15),
+                    _buildTextField('Company Name', _companyNameController, Icons.business, false, (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter company name';
+                      }
+                      return null;
+                    }),
+                    const SizedBox(height: 15),
+                    _buildTextField('Address', _addressController, Icons.location_on, false, (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter address';
+                      }
+                      return null;
+                    }),
+                    const SizedBox(height: 15),
+                    _buildTextField('State', _stateController, Icons.map, false, (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter state';
+                      }
+                      return null;
+                    }),
+                    const SizedBox(height: 15),
+                    _buildTextField('City', _cityController, Icons.location_city, false, (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter city';
+                      }
+                      return null;
+                    }),
+                  ],
                 ],
                 const SizedBox(height: 25),
                 _buildButton(_isLogin ? 'Log In' : 'Sign Up', _authenticate),
+                const SizedBox(height: 20),
               ],
             ],
           ),
@@ -149,8 +241,15 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, IconData icon, bool obscure, [TextInputType type = TextInputType.text]) {
-    return TextField(
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    bool obscure,
+    FormFieldValidator<String>? validator, [
+    TextInputType type = TextInputType.text,
+  ]) {
+    return TextFormField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
@@ -158,6 +257,7 @@ class _AuthScreenState extends State<AuthScreen> {
       ),
       obscureText: obscure,
       keyboardType: type,
+      validator: validator,
     );
   }
 
