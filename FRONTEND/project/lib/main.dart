@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'home_page.dart'; // Import HomePage
+import 'masterUrl.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
-const String backendUrl = 'http://10.0.2.2:5000/api/auth';
+const String backendUrl = '${masterUrl}/api/auth';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
