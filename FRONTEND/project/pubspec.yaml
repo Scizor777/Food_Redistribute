@@ -31,6 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
   geolocator: ^10.1.0
+  permission_handler: ^10.0.0
   fluttertoast: ^8.2.4
 
 
